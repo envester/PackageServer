@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using package_management.Data;
+using package_management.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,6 +9,8 @@ builder.Services.AddCors();
 builder.Services.AddDbContext<DatabaseContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("sqlConnection"))
 );
+
+builder.Services.AddScoped<IPackageRepository, PackageRepository>();
 
 builder.Services.AddControllers();
 
@@ -32,64 +35,25 @@ app.UseAuthorization();
 app.MapControllers();
 
 //Endpoints
-app.MapGet("packages/get", async (DatabaseContext databaseContext) =>
+app.MapGet("packages/get", (IPackageRepository service) =>
 {
-    List<Package> packages = await databaseContext.Packages
-        .Include(p => p.Contact)
-        .Include(p => p.InfoPackage)
-        .ToListAsync();
-  
-    return Results.Ok(packages);
-
-
+    return service.GetPackages();
 });
-app.MapGet("packages/get/{id}", async (int id, DatabaseContext databaseContext) =>
+app.MapGet("packages/get/{id}", (int id, IPackageRepository service) =>
 {
-    var packages = await databaseContext.Packages
-        .Include(p => p.Contact)
-        .Include(p => p.InfoPackage)
-        .FirstOrDefaultAsync(p => p.Id == id);
-    if (packages == null)
-    {
-        return Results.NotFound();
-    }
-    return Results.Ok(packages);
+    return service.GetPackage(id);
 });
-app.MapPost("package/create", async (Package package, DatabaseContext databaseContext) =>
+app.MapPost("package/create", (Package package, IPackageRepository service) =>
 {
-    databaseContext.Packages.Add(package);
-    await databaseContext.SaveChangesAsync();
-    return Results.Ok();
+    service.AddPackage(package);
 });
-app.MapPut("package/update", async (Package package, DatabaseContext databaseContext) =>
+app.MapPut("package/update", (Package package, IPackageRepository service) =>
 {
-    var dbPackage = await databaseContext.Packages.FindAsync(package.Id);
-    if(dbPackage == null)
-    {
-        return Results.NotFound();
-    }
-    dbPackage.PhoneNumber = package.PhoneNumber;
-    dbPackage.AddressLine = package.AddressLine;
-    dbPackage.PostCode = package.PostCode;
-    dbPackage.Contact = package.Contact;
-    dbPackage.InfoPackage = package.InfoPackage;
-    
-
-    await databaseContext.SaveChangesAsync();
-    return Results.NoContent();
+    service.UpdatePackage(package);
 });
-app.MapDelete("packages/delete/{id}", async (int id, DatabaseContext databaseContext) =>
+app.MapDelete("packages/delete/{id}", (int id, IPackageRepository service) =>
 {
-    var dbPackage = await databaseContext.Packages.FindAsync(id);
-    if(dbPackage == null)
-    {
-        return Results.NotFound();
-    }
-
-    databaseContext.Packages.Remove(dbPackage);
-    await databaseContext.SaveChangesAsync();
-    return Results.Ok();
-
+    service.RemovePackage(id);
 });
 
 app.Run();
